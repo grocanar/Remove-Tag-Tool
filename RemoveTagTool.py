@@ -25,7 +25,7 @@
 #
 # -------------------------------------------------
 from gramps.gui.plug import MenuToolOptions, PluginWindows
-from gramps.gen.plug.menu import StringOption, FilterOption, PersonOption
+from gramps.gen.plug.menu import StringOption, FilterOption, PersonOption, EnumeratedListOption
 from gramps.gen.db import DbTxn
 import gramps.gen.plug.report.utils as ReportUtils
 from gramps.gui.dialog import OkDialog
@@ -67,10 +67,21 @@ class RemoveTagOptions(MenuToolOptions):
         menu.add_option(category_name, "pid", self.__pid)
         self.__pid.connect('value-changed', self.__update_filters)
 
-        tag_name = StringOption(_("Tag Name"), "")
-        tag_name.set_help(_("Tag name to remove from the people"))
-        menu.add_option(category_name, "tag_name", tag_name)
-        self.__tag_name = tag_name
+        all_tags = []
+        for handle in self.__db.get_tag_handles(sort_handles=True):
+            tag = self.__db.get_tag_from_handle(handle)
+            all_tags.append(tag.get_name())
+
+        if len(all_tags) > 0:
+            tag_option = EnumeratedListOption(_('Tag'), all_tags[0])
+            for tag_name in all_tags:
+                tag_option.add_item(tag_name, tag_name)
+        else:
+            tag_option = EnumeratedListOption(_('Tag'), '')
+            tag_option.add_item('', '')
+        tag_option.set_help( _("The tag to use for the report"))
+        menu.add_option(category_name, "tag", tag_option)
+
 
         self.__update_filters()
 
@@ -108,7 +119,8 @@ class RemoveTagWindow(PluginWindows.ToolManagedWindowBatch):
         """
         Main function running the Remove Tag Tool
         """
-        tag_name = self.options.handler.options_dict['tag_name']
+        tag_name = self.options.handler.options_dict['tag']
+
         tag_name_exists = self.__tagNameExists(tag_name)
         if tag_name_exists[0]:
             tag_handle = tag_name_exists[1]
@@ -125,10 +137,8 @@ class RemoveTagWindow(PluginWindows.ToolManagedWindowBatch):
             serialized = Tag.serialize()
             tag_handle = serialized[0]
             name = serialized[1]
-            tag_dict[name] = tag_handle
-        if tag_name in tag_dict:
-            return_tag_handle = str(tag_dict[tag_name])
-            return (True, return_tag_handle)
+            if name == tag_name:
+                return (True, tag_handle)
         else:
             text = _("No tag with name '{}' was found in this family tree.\n")
             text_f = text.format(str(tag_name))
